@@ -1,0 +1,34 @@
+{
+  "name": "blind-dev-toolkit",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@lemonsqueezy/lemonsqueezy.js": "^4.0.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "framer-motion": "^11.11.10",
+    "lucide-react": "^0.468.0",
+    "monaco-editor": "^0.52.2",
+    "next": "15.2.3",
+    "next-auth": "^4.24.11",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-hotkeys-hook": "^5.0.1",
+    "stripe": "^17.5.0",
+    "tailwind-merge": "^2.5.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^22.10.1",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.2"
+  }
+}
