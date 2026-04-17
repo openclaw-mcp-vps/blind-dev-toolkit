@@ -1,166 +1,131 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef } from "react";
+import Editor from "@monaco-editor/react";
 import { useHotkeys } from "react-hotkeys-hook";
-import { BellRing, Bug, Users } from "lucide-react";
-import { CodeNavigator } from "@/components/CodeNavigator";
-import { AudioFeedback } from "@/components/AudioFeedback";
-import { ScreenReaderOptimizedUI } from "@/components/ScreenReaderOptimizedUI";
-import { runAccessibilityAnalysis } from "@/lib/accessibility-engine";
-import { speakAccessibilityMessage } from "@/lib/audio-synthesis";
+import { create } from "zustand";
+import type { editor as MonacoEditor } from "monaco-editor";
+import { CodeReader } from "@/components/CodeReader";
+import { KeyboardNavigator } from "@/components/KeyboardNavigator";
+import { VoiceSynthesis } from "@/components/VoiceSynthesis";
+import { countComplexitySignals, humanLine, splitCodeToLines } from "@/lib/accessibility-utils";
 
-const STARTER_CODE = `export function SaveButton() {
-  return (
-    <button aria-label="Save current file" onClick={() => console.log("saved")}>Save</button>
-  );
+type EditorState = {
+  code: string;
+  activeLine: number;
+  setCode: (code: string) => void;
+  setActiveLine: (line: number) => void;
+};
+
+const initialCode = `function announceStatus(taskName, completed) {
+  const status = completed ? "done" : "in progress";
+  return "Task " + taskName + " is " + status + ".";
+}
+
+export function summarizeBuild(steps) {
+  return steps
+    .map((step, index) => "Step " + (index + 1) + ": " + step)
+    .join("\\n");
 }`;
 
-const COLLAB_CHANNEL = "blind-dev-toolkit-editor";
+const useEditorStore = create<EditorState>((set) => ({
+  code: initialCode,
+  activeLine: 0,
+  setCode: (code) => set({ code }),
+  setActiveLine: (line) => set({ activeLine: line })
+}));
 
 export function AccessibleEditor() {
-  const [code, setCode] = useState(STARTER_CODE);
-  const [collabPeers, setCollabPeers] = useState(1);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const navSectionRef = useRef<HTMLElement | null>(null);
-  const report = useMemo(() => runAccessibilityAnalysis(code), [code]);
+  const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
+  const code = useEditorStore((state) => state.code);
+  const activeLine = useEditorStore((state) => state.activeLine);
+  const setCode = useEditorStore((state) => state.setCode);
+  const setActiveLine = useEditorStore((state) => state.setActiveLine);
 
-  useEffect(() => {
-    const channel = new BroadcastChannel(COLLAB_CHANNEL);
-    channel.postMessage({ type: "presence", at: Date.now() });
+  const lines = useMemo(() => splitCodeToLines(code), [code]);
+  const focusedLineText = useMemo(() => humanLine(lines, activeLine), [lines, activeLine]);
+  const stats = useMemo(() => countComplexitySignals(code), [code]);
 
-    const peerHeartbeats = new Map<string, number>();
-    const id = `${Date.now()}-${Math.random()}`;
-
-    const heartbeat = setInterval(() => {
-      channel.postMessage({ type: "heartbeat", id, at: Date.now() });
-      const now = Date.now();
-      const active = Array.from(peerHeartbeats.values()).filter((ts) => now - ts < 4000).length;
-      setCollabPeers(Math.max(1, active + 1));
-    }, 1500);
-
-    channel.onmessage = (event: MessageEvent) => {
-      const message = event.data as { type: string; code?: string; id?: string; at?: number };
-
-      if (message.type === "code-sync" && typeof message.code === "string") {
-        setCode(message.code);
-      }
-      if (message.type === "heartbeat" && message.id && message.at) {
-        peerHeartbeats.set(message.id, message.at);
-      }
-    };
-
-    return () => {
-      clearInterval(heartbeat);
-      channel.close();
-    };
+  const speakText = useCallback((text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1;
+    window.speechSynthesis.speak(utterance);
   }, []);
 
-  useEffect(() => {
-    const channel = new BroadcastChannel(COLLAB_CHANNEL);
-    channel.postMessage({ type: "code-sync", code });
-    return () => channel.close();
-  }, [code]);
-
-  const runAnalysis = () => {
-    const critical = report.hints.filter((hint) => hint.severity === "critical").length;
-    speakAccessibilityMessage(
-      `Analysis complete. Score ${report.score} out of 100. ${report.parseIssues.length} parser issues and ${critical} critical accessibility warnings.`
-    );
-  };
-
-  const announceEditorStatus = (message?: string) => {
-    speakAccessibilityMessage(message ?? `Current code length ${code.length} characters. Score ${report.score}.`);
-  };
-
-  const jumpToLine = (line: number) => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      return;
-    }
-
-    const lines = textarea.value.split("\n");
-    const offset = lines.slice(0, line - 1).join("\n").length + (line > 1 ? 1 : 0);
-    textarea.focus();
-    textarea.setSelectionRange(offset, offset);
-    speakAccessibilityMessage(`Cursor moved to line ${line}`);
-  };
-
-  useHotkeys("alt+a", (event) => {
-    event.preventDefault();
-    runAnalysis();
+  useHotkeys("ctrl+shift+l", () => {
+    speakText(focusedLineText);
   });
 
-  useHotkeys("alt+s", (event) => {
-    event.preventDefault();
-    announceEditorStatus();
+  useHotkeys("ctrl+shift+r", () => {
+    const selection = editorRef.current?.getModel()?.getValueInRange(editorRef.current.getSelection()!);
+    speakText(selection?.trim() ? `Selected code. ${selection}` : focusedLineText);
   });
 
-  useHotkeys("alt+n", (event) => {
-    event.preventDefault();
-    navSectionRef.current?.querySelector("button")?.focus();
-    speakAccessibilityMessage("Semantic navigator focused.");
+  useHotkeys("ctrl+shift+down", () => {
+    const nextLine = Math.min(lines.length - 1, activeLine + 1);
+    setActiveLine(nextLine);
+    editorRef.current?.revealLineInCenter(nextLine + 1);
+    editorRef.current?.setPosition({ lineNumber: nextLine + 1, column: 1 });
+    speakText(humanLine(lines, nextLine));
   });
+
+  useHotkeys("alt+1", () => editorRef.current?.focus());
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-      <section className="rounded-xl border bg-[#111820] p-4" aria-label="Accessible editor">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--muted)]">
-          <span className="inline-flex items-center gap-1">
-            <Users className="h-3.5 w-3.5" aria-hidden="true" />
-            Live collaboration peers: {collabPeers}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <BellRing className="h-3.5 w-3.5" aria-hidden="true" />
-            Alt+A analyze | Alt+S status | Alt+N navigator
-          </span>
-        </div>
-        <label htmlFor="code-editor" className="mb-2 block text-sm font-semibold">
-          Code Buffer
-        </label>
-        <textarea
-          ref={textareaRef}
-          id="code-editor"
-          value={code}
-          onChange={(event) => setCode(event.target.value)}
-          className="h-[420px] w-full resize-y rounded-md border bg-[#0d1117] p-3 font-mono text-sm leading-6"
-          aria-describedby="editor-help"
-        />
-        <p id="editor-help" className="mt-2 text-xs text-[var(--muted)]">
-          This editor favors predictable screen reader output over visual-only syntax highlighting. Diagnostics and landmarks are mirrored in plain text regions.
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <section aria-labelledby="editor-title" className="panel p-4">
+        <h2 id="editor-title" className="text-lg font-semibold">
+          Accessible Code Editor
+        </h2>
+        <p className="mt-2 text-sm text-[#9ba7b4]">
+          The editor keeps line focus synchronized with speech output and exposes predictable keyboard commands.
         </p>
+
+        <div className="mt-4 overflow-hidden rounded-md border border-[#30363d]">
+          <Editor
+            height="420px"
+            defaultLanguage="typescript"
+            value={code}
+            theme="vs-dark"
+            onMount={(editor) => {
+              editorRef.current = editor;
+              editor.onDidChangeCursorPosition((event) => {
+                setActiveLine(event.position.lineNumber - 1);
+              });
+            }}
+            onChange={(value) => setCode(value ?? "")}
+            options={{
+              minimap: { enabled: false },
+              fontSize: 16,
+              lineHeight: 24,
+              smoothScrolling: true,
+              cursorWidth: 3,
+              tabSize: 2,
+              ariaLabel: "Blind Dev Toolkit code editor",
+              accessibilitySupport: "on"
+            }}
+          />
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#30363d] bg-[#0d1117] p-3 text-sm">
+          <p>
+            <span className="text-[#9ba7b4]">Complexity snapshot:</span> {stats.lineCount} lines, {stats.longLines} long lines, {stats.deepNesting} deeply nested lines.
+          </p>
+          <p>
+            <span className="text-[#9ba7b4]">Estimated review time:</span> {stats.estimatedReadTime} min
+          </p>
+        </div>
+
+        <div className="mt-3">
+          <VoiceSynthesis text={code} label="Read full code" />
+        </div>
       </section>
 
       <div className="space-y-4">
-        <section ref={navSectionRef}>
-          <CodeNavigator code={code} onJumpToLine={jumpToLine} />
-        </section>
-
-        <AudioFeedback issues={report.parseIssues} />
-
-        <ScreenReaderOptimizedUI runAnalysis={runAnalysis} announceStatus={announceEditorStatus} />
-
-        <section aria-label="Accessibility test report" className="rounded-xl border bg-[#111820] p-4">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-            <Bug className="h-4 w-4" aria-hidden="true" />
-            Accessibility Report
-          </h2>
-          <p className="mb-3 text-sm">
-            Score: <strong>{report.score}/100</strong>
-          </p>
-          <ul role="list" className="space-y-2 text-xs">
-            {report.hints.map((hint) => (
-              <li key={hint.id} className="rounded-md border bg-[#0d1117] p-2">
-                <strong>{hint.title}</strong>
-                <p className="mt-1 text-[var(--muted)]">{hint.detail}</p>
-              </li>
-            ))}
-            {report.hints.length === 0 && (
-              <li className="rounded-md border bg-[#0d1117] p-2 text-[var(--success)]">
-                No accessibility warnings detected in this pass.
-              </li>
-            )}
-          </ul>
-        </section>
+        <CodeReader code={code} activeLine={activeLine} />
+        <KeyboardNavigator />
       </div>
     </div>
   );

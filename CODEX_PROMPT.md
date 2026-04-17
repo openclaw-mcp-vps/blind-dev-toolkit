@@ -11,24 +11,24 @@ NICHE: accessibility-tools
 PRICE: $$19/mo
 
 ARCHITECTURE SPEC:
-A web-based IDE with screen reader optimizations, featuring semantic code navigation, audio feedback for syntax errors, and keyboard-only workflows. Built as a Next.js app with real-time collaboration and integrated accessibility testing tools.
+A Next.js web application providing screen reader optimized code editors, audio feedback tools, and accessibility-first development utilities. The platform offers specialized coding environments with enhanced keyboard navigation, voice synthesis for code review, and collaborative features designed specifically for blind and visually impaired developers.
 
 PLANNED FILES:
 - app/page.tsx
 - app/editor/page.tsx
+- app/dashboard/page.tsx
 - app/api/auth/[...nextauth]/route.ts
 - app/api/lemonsqueezy/webhook/route.ts
 - components/AccessibleEditor.tsx
-- components/CodeNavigator.tsx
-- components/AudioFeedback.tsx
-- components/ScreenReaderOptimizedUI.tsx
-- lib/accessibility-engine.ts
-- lib/code-parser.ts
-- lib/audio-synthesis.ts
+- components/VoiceSynthesis.tsx
+- components/KeyboardNavigator.tsx
+- components/CodeReader.tsx
+- lib/auth.ts
 - lib/lemonsqueezy.ts
+- lib/accessibility-utils.ts
 - middleware.ts
 
-DEPENDENCIES: next, react, typescript, tailwindcss, next-auth, monaco-editor, @lemonsqueezy/lemonsqueezy.js, framer-motion, lucide-react, react-hotkeys-hook, web-speech-api, prisma, @prisma/client, stripe
+DEPENDENCIES: next, react, typescript, tailwindcss, next-auth, @auth/prisma-adapter, prisma, @prisma/client, @lemonsqueezy/lemonsqueezy.js, monaco-editor, @monaco-editor/react, speech-synthesis-ssml, react-hotkeys-hook, zustand, zod, lucide-react
 
 REQUIREMENTS:
 - Next.js 15 with App Router (app/ directory)
@@ -43,6 +43,7 @@ REQUIREMENTS:
 - SEO meta tags, Open Graph tags
 - /api/health endpoint that returns {"status":"ok"}
 - NO HEAVY ORMs: Do NOT use Prisma, Drizzle, TypeORM, Sequelize, or Mongoose. If the tool needs persistence, use direct SQL via `pg` (Postgres) or `better-sqlite3` (local), or just filesystem JSON. Reason: these ORMs require schema files and codegen steps that fail on Vercel when misconfigured.
+- INTERNAL FILE DISCIPLINE: Every internal import (paths starting with `@/`, `./`, or `../`) MUST refer to a file you actually create in this build. If you write `import { Card } from "@/components/ui/card"`, then `components/ui/card.tsx` MUST exist with a real `export const Card` (or `export default Card`). Before finishing, scan all internal imports and verify every target file exists. Do NOT use shadcn/ui patterns unless you create every component from scratch — easier path: write all UI inline in the page that uses it.
 - DEPENDENCY DISCIPLINE: Every package imported in any .ts, .tsx, .js, or .jsx file MUST be
   listed in package.json dependencies (or devDependencies for build-only). Before finishing,
   scan all source files for `import` statements and verify every external package (anything
@@ -67,8 +68,3 @@ After creating all files:
 
 Do NOT use placeholder text. Write real, helpful content for the landing page
 and the tool itself. The tool should actually work and provide value.
-
-
-PREVIOUS ATTEMPT FAILED WITH:
-Codex timed out after 600s
-Please fix the above errors and regenerate.

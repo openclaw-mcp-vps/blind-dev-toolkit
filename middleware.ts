@@ -1,21 +1,24 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export function middleware(request: NextRequest) {
-  if (!request.nextUrl.pathname.startsWith("/editor")) {
-    return NextResponse.next();
-  }
+const protectedPaths = ["/editor", "/dashboard"];
 
-  const hasAccess = request.cookies.get("bdt_access")?.value === "granted";
-  if (!hasAccess) {
-    const redirectUrl = new URL("/purchase/success", request.url);
-    redirectUrl.searchParams.set("required", "1");
-    return NextResponse.redirect(redirectUrl);
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  if (protectedPaths.some((path) => pathname.startsWith(path))) {
+    const hasAccess = request.cookies.get("bdt_paid")?.value === "true";
+    if (!hasAccess) {
+      const redirectUrl = new URL("/", request.url);
+      redirectUrl.searchParams.set("paywall", "required");
+      redirectUrl.searchParams.set("from", pathname);
+      return NextResponse.redirect(redirectUrl);
+    }
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/editor/:path*"]
+  matcher: ["/editor/:path*", "/dashboard/:path*"]
 };

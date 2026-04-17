@@ -3,13 +3,11 @@
 :root {
   --background: #0d1117;
   --foreground: #e6edf3;
-  --muted: #9ba7b4;
-  --card: #161b22;
+  --muted: #161b22;
+  --muted-foreground: #9ba7b4;
   --border: #30363d;
-  --accent: #2f81f7;
-  --success: #3fb950;
-  --warning: #d29922;
-  --danger: #f85149;
+  --accent: #1f6feb;
+  --accent-foreground: #f0f6fc;
 }
 
 * {
@@ -18,20 +16,38 @@
 
 html,
 body {
-  background: radial-gradient(circle at top right, #1a2433 0%, #0d1117 45%), #0d1117;
+  background: radial-gradient(circle at top right, #1c2430 0%, #0d1117 45%) fixed;
   color: var(--foreground);
+  font-family: "IBM Plex Sans", "Source Sans 3", sans-serif;
   min-height: 100%;
 }
 
-body {
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+a {
+  color: inherit;
 }
 
-a:focus-visible,
+.container {
+  margin: 0 auto;
+  max-width: 72rem;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--muted) 92%, transparent);
+  border-radius: 0.9rem;
+}
+
+.section-title {
+  font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+  font-weight: 700;
+}
+
 button:focus-visible,
-textarea:focus-visible,
 input:focus-visible,
-[tabindex]:focus-visible {
-  outline: 2px solid var(--accent);
+textarea:focus-visible,
+[role="button"]:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--accent) 75%, white);
   outline-offset: 2px;
 }
