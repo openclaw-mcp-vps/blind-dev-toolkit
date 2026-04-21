@@ -1,210 +1,147 @@
-"use client";
-
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { CheckCircle2, Headphones, Keyboard, ShieldCheck } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { cookies } from "next/headers";
+import { ArrowRight, Ear, ShieldCheck, Users, Workflow } from "lucide-react";
+import { PricingCard } from "@/components/PricingCard";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ACCESS_COOKIE_NAME, verifyAccessToken } from "@/lib/access-control";
 
-const faqItems = [
+const faq = [
   {
-    q: "How does Blind Dev Toolkit improve screen reader coding speed?",
-    a: "The editor keeps line focus, spoken output, and keyboard navigation in sync. You always hear exactly where you are, without hunting through visual UI state."
+    question: "How does this reduce navigation overhead for blind developers?",
+    answer:
+      "The editor ships with spoken line context, symbol-level jump controls, and concise status announcements. Instead of scanning visually dense UI, developers can navigate by keyboard and audio prompts designed around code structure."
   },
   {
-    q: "Does this replace my existing editor stack?",
-    a: "No. It complements your workflow for high-focus coding and review sessions, then you can move changes back into your standard repository process."
+    question: "Does it work with NVDA, JAWS, and VoiceOver?",
+    answer:
+      "Yes. The app uses ARIA live regions, lower-noise announcements, and Monaco accessibility options that improve compatibility with all three major screen readers."
   },
   {
-    q: "How does access work after payment?",
-    a: "When Lemon Squeezy confirms your purchase, you verify with your order ID and email once. We set a secure browser cookie that unlocks the protected toolkit pages."
+    question: "How does paywall access work after purchase?",
+    answer:
+      "Checkout happens in Stripe hosted checkout. Stripe webhook events mark your purchase email as active, then dashboard verification sets a secure cookie that unlocks the editor and project APIs."
+  },
+  {
+    question: "Can teams use this for onboarding and pair programming?",
+    answer:
+      "Yes. Collaboration sync events allow live shared editing, and the dashboard keeps accessible starter projects for team onboarding workflows."
   }
 ];
 
-export default function HomePage() {
-  const checkoutUrl = useMemo(() => {
-    const productId = process.env.NEXT_PUBLIC_LEMON_SQUEEZY_PRODUCT_ID;
-    if (!productId) return null;
-    const query = new URLSearchParams({
-      embed: "1",
-      media: "0",
-      logo: "0",
-      checkout: "true"
-    });
-    return `https://app.lemonsqueezy.com/checkout/buy/${productId}?${query.toString()}`;
-  }, []);
-  const [email, setEmail] = useState("");
-  const [orderId, setOrderId] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const startCheckout = () => {
-    if (!checkoutUrl) {
-      setStatus("Checkout is not configured yet. Add Lemon Squeezy environment variables.");
-      return;
-    }
-
-    const popup = window.open(checkoutUrl, "_blank", "noopener,noreferrer,width=980,height=760");
-    if (!popup) setStatus("Please allow popups to open the secure checkout window.");
-  };
-
-  const unlockAccess = async () => {
-    setStatus(null);
-    setLoading(true);
-
-    try {
-      const response = await fetch("/api/paywall/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, orderId })
-      });
-
-      const payload = (await response.json()) as { status?: string; error?: string };
-      if (!response.ok) {
-        setStatus(payload.error ?? "Unable to verify purchase.");
-        return;
-      }
-
-      setStatus("Purchase verified. Access unlocked. Opening your dashboard...");
-      window.setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 800);
-    } catch {
-      setStatus("Network error while verifying purchase. Please retry.");
-    } finally {
-      setLoading(false);
-    }
-  };
+export default async function HomePage() {
+  const cookieStore = await cookies();
+  const access = verifyAccessToken(cookieStore.get(ACCESS_COOKIE_NAME)?.value);
 
   return (
-    <main>
-      <section className="container pb-24 pt-16">
-        <div className="panel relative overflow-hidden p-8 md:p-12">
-          <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-1/2 bg-[radial-gradient(circle_at_center,_rgba(31,111,235,0.22),_transparent_72%)] md:block" />
-          <div className="relative max-w-3xl">
-            <p className="inline-flex rounded-full border border-[#30363d] bg-[#0d1117] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#7ee787]">
-              Accessibility Tools · $19/month
-            </p>
-            <h1 className="section-title mt-5 text-4xl leading-tight md:text-5xl">
-              Screen reader optimized coding environment and tools
-            </h1>
-            <p className="mt-5 text-lg text-[#c2cbd6]">
-              Blind Dev Toolkit is a focused workspace for blind and low-vision developers who want faster code navigation, accurate spoken review, and fewer accessibility blockers in daily development.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Button size="lg" onClick={startCheckout}>
-                Start secure checkout
-              </Button>
-              <Link href="/editor" className="inline-flex h-11 items-center rounded-md border border-[#30363d] px-5 text-sm font-semibold hover:bg-[#21262d]">
-                Preview the editor
-              </Link>
-            </div>
-          </div>
+    <main className="mx-auto max-w-6xl space-y-16 px-4 py-10 sm:px-6 lg:px-8">
+      <header className="rounded-2xl border border-[var(--border)] bg-[linear-gradient(145deg,rgba(17,26,39,0.92),rgba(9,15,24,0.9))] p-8 sm:p-10">
+        <Badge className="mb-4">Accessibility Tools · $19/month</Badge>
+        <h1 className="max-w-3xl text-3xl font-semibold leading-tight sm:text-5xl">
+          Screen reader optimized coding environment and tools
+        </h1>
+        <p className="mt-4 max-w-2xl text-base text-[var(--muted)] sm:text-lg">
+          Blind Dev Toolkit gives blind and visually impaired engineers an IDE workflow that starts with accessibility instead of patching it in later. Ship faster with audio navigation, concise announcements, and collaboration-ready coding sessions.
+        </p>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <Link className={buttonVariants()} href={access ? "/editor" : "/dashboard"}>
+            {access ? "Open Editor" : "Open Dashboard"}
+            <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+          </Link>
+          <a className={buttonVariants({ variant: "outline" })} href="#pricing">
+            View Pricing
+          </a>
         </div>
+      </header>
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Ear className="h-5 w-5 text-[var(--accent)]" aria-hidden="true" />
+              Problem
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-[var(--muted)]">
+            Standard IDEs force visual navigation patterns. Blind developers often spend 3-5x longer locating symbols, understanding state changes, and interpreting diagnostics because tooling is optimized for sighted workflows.
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <ShieldCheck className="h-5 w-5 text-[var(--accent)]" aria-hidden="true" />
+              Solution
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-[var(--muted)]">
+            This toolkit layers structured speech output, keyboard-first symbol jumps, and accessible debug summaries directly into the editor. Developers get predictable audio feedback for every key coding action.
+          </CardContent>
+        </Card>
       </section>
 
-      <section className="container pb-20">
-        <div className="grid gap-4 md:grid-cols-3">
-          <article className="panel p-5">
-            <Headphones className="h-5 w-5 text-[#7ee787]" aria-hidden />
-            <h2 className="mt-3 text-lg font-semibold">Problem</h2>
-            <p className="mt-2 text-sm text-[#9ba7b4]">
-              Most coding tools expose critical context visually, making blind developers work around noisy interfaces and fragmented announcements.
-            </p>
-          </article>
-          <article className="panel p-5">
-            <Keyboard className="h-5 w-5 text-[#79c0ff]" aria-hidden />
-            <h2 className="mt-3 text-lg font-semibold">Solution</h2>
-            <p className="mt-2 text-sm text-[#9ba7b4]">
-              A keyboard-first editor with predictable focus, line-aware narration, and spoken summaries for rapid code review.
-            </p>
-          </article>
-          <article className="panel p-5">
-            <ShieldCheck className="h-5 w-5 text-[#d2a8ff]" aria-hidden />
-            <h2 className="mt-3 text-lg font-semibold">Outcome</h2>
-            <p className="mt-2 text-sm text-[#9ba7b4]">
-              Developers maintain flow, reduce context switching, and deliver accessibility-aware code faster across teams.
-            </p>
-          </article>
-        </div>
+      <section className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Workflow className="h-4 w-4 text-[var(--accent-2)]" aria-hidden="true" />
+              Audio Code Navigation
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-[var(--muted)]">
+            Hear contextual line summaries and symbol outlines on demand. Move through functions and classes without visual scanning.
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="h-4 w-4 text-[var(--accent-2)]" aria-hidden="true" />
+              Collaboration Ready
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-[var(--muted)]">
+            Socket-based collaboration broadcasts code updates in real time for pair programming and onboarding sessions.
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ShieldCheck className="h-4 w-4 text-[var(--accent-2)]" aria-hidden="true" />
+              Secure Paywall Access
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-[var(--muted)]">
+            Stripe checkout with webhook-backed entitlement verification unlocks access through a secure cookie workflow.
+          </CardContent>
+        </Card>
       </section>
 
-      <section className="container pb-20">
-        <div className="panel p-8 md:p-10">
-          <h2 className="section-title text-3xl">Pricing</h2>
-          <p className="mt-2 text-[#9ba7b4]">One plan with full access to the coding workspace and all accessibility tools.</p>
-          <div className="mt-6 rounded-xl border border-[#30363d] bg-[#0d1117] p-6">
-            <p className="text-sm uppercase tracking-wider text-[#9ba7b4]">Blind Dev Toolkit Pro</p>
-            <p className="mt-2 text-4xl font-bold">$19<span className="text-lg font-medium text-[#9ba7b4]"> / month</span></p>
-            <ul className="mt-5 space-y-2 text-sm text-[#c2cbd6]">
-              {["Accessible editor with speech-linked cursor tracking", "Code Reader for line-by-line spoken context", "Keyboard map with zero-mouse workflow", "Protected dashboard and member tool access"].map((item) => (
-                <li key={item} className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 text-[#7ee787]" aria-hidden />
-                  {item}
-                </li>
-              ))}
-            </ul>
-            <div className="mt-6">
-              <Button onClick={startCheckout}>Subscribe now</Button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="container pb-20">
-        <div className="panel p-8 md:p-10">
-          <h2 className="section-title text-3xl">Unlock Your Toolkit</h2>
-          <p className="mt-2 max-w-2xl text-sm text-[#9ba7b4]">
-            After checkout, paste the same email used for payment and your Lemon Squeezy order ID. We verify the purchase and unlock this browser.
+      <section id="pricing" className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 p-6">
+          <h2 className="text-2xl font-semibold">Built for engineers and teams who care about inclusive velocity</h2>
+          <p className="text-sm text-[var(--muted)]">
+            Companies adopting remote-first hiring are actively expanding talent pipelines. Accessible development tooling helps teams onboard blind engineers effectively and meet accessibility commitments in their products.
           </p>
-          <form
-            className="mt-6 grid gap-3 md:max-w-xl"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void unlockAccess();
-            }}
-          >
-            <label className="grid gap-1 text-sm">
-              Purchase email
-              <input
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-                type="email"
-                className="rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2"
-                placeholder="name@company.com"
-              />
-            </label>
-            <label className="grid gap-1 text-sm">
-              Order ID
-              <input
-                value={orderId}
-                onChange={(event) => setOrderId(event.target.value)}
-                required
-                className="rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2"
-                placeholder="123456"
-              />
-            </label>
-            <div>
-              <Button type="submit" disabled={loading}>
-                {loading ? "Verifying purchase..." : "Verify and unlock"}
-              </Button>
-            </div>
-            {status ? <p aria-live="polite" className="text-sm text-[#9ba7b4]">{status}</p> : null}
-          </form>
+          <ul className="space-y-2 text-sm text-[var(--muted)]">
+            <li>Blind and visually impaired software engineers in enterprise and startup teams</li>
+            <li>Accessibility consultants building inclusive products for clients</li>
+            <li>Engineering organizations improving onboarding for diverse talent</li>
+          </ul>
         </div>
+        <PricingCard />
       </section>
 
-      <section className="container pb-24">
-        <div className="panel p-8 md:p-10">
-          <h2 className="section-title text-3xl">FAQ</h2>
-          <div className="mt-5 space-y-4">
-            {faqItems.map((item) => (
-              <article key={item.q} className="rounded-lg border border-[#30363d] bg-[#0d1117] p-4">
-                <h3 className="font-semibold">{item.q}</h3>
-                <p className="mt-2 text-sm text-[#9ba7b4]">{item.a}</p>
-              </article>
-            ))}
-          </div>
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">FAQ</h2>
+        <div className="space-y-3">
+          {faq.map((item) => (
+            <Card key={item.question}>
+              <CardHeader>
+                <CardTitle className="text-base">{item.question}</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 text-sm text-[var(--muted)]">{item.answer}</CardContent>
+            </Card>
+          ))}
         </div>
       </section>
     </main>

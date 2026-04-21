@@ -4,31 +4,34 @@ Build a complete, production-ready Next.js 15 App Router application.
 
 PROJECT: blind-dev-toolkit
 HEADLINE: Screen reader optimized coding environment and tools
-WHAT: None
-WHY: None
-WHO PAYS: None
+WHAT: A specialized IDE and toolkit designed for blind and visually impaired developers, with optimized screen reader integration, audio code navigation, and accessible debugging tools that work seamlessly with NVDA, JAWS, and VoiceOver.
+WHY: Blind developers spend 3-5x longer navigating standard IDEs due to poor screen reader support and visual-first interfaces. With remote work increasing demand for diverse talent, companies need accessible dev tools to tap into this underserved market.
+WHO PAYS: Blind and visually impaired software engineers at tech companies, accessibility consultants building inclusive products, and development teams committed to hiring diverse talent who need proper tooling to onboard blind developers effectively.
 NICHE: accessibility-tools
 PRICE: $$19/mo
 
 ARCHITECTURE SPEC:
-A Next.js web application providing screen reader optimized code editors, audio feedback tools, and accessibility-first development utilities. The platform offers specialized coding environments with enhanced keyboard navigation, voice synthesis for code review, and collaborative features designed specifically for blind and visually impaired developers.
+A Next.js web application with an accessible code editor built on Monaco Editor with custom screen reader optimizations, audio navigation system, and real-time collaboration features. The architecture includes a Node.js backend for project management, WebSocket connections for live coding sessions, and integrated payment processing through Lemon Squeezy.
 
 PLANNED FILES:
 - app/page.tsx
 - app/editor/page.tsx
 - app/dashboard/page.tsx
-- app/api/auth/[...nextauth]/route.ts
-- app/api/lemonsqueezy/webhook/route.ts
+- app/api/auth/route.ts
+- app/api/projects/route.ts
+- app/api/webhooks/lemonsqueezy/route.ts
 - components/AccessibleEditor.tsx
-- components/VoiceSynthesis.tsx
-- components/KeyboardNavigator.tsx
-- components/CodeReader.tsx
-- lib/auth.ts
+- components/AudioNavigator.tsx
+- components/ScreenReaderOptimizer.tsx
+- components/PricingCard.tsx
+- lib/audio-engine.ts
+- lib/screen-reader-bridge.ts
 - lib/lemonsqueezy.ts
-- lib/accessibility-utils.ts
-- middleware.ts
+- lib/websocket-server.ts
+- hooks/useAudioNavigation.ts
+- hooks/useScreenReader.ts
 
-DEPENDENCIES: next, react, typescript, tailwindcss, next-auth, @auth/prisma-adapter, prisma, @prisma/client, @lemonsqueezy/lemonsqueezy.js, monaco-editor, @monaco-editor/react, speech-synthesis-ssml, react-hotkeys-hook, zustand, zod, lucide-react
+DEPENDENCIES: next, react, typescript, tailwindcss, @monaco-editor/react, socket.io, socket.io-client, @lemonsqueezy/lemonsqueezy.js, next-auth, prisma, @prisma/client, web-speech-api, tone, framer-motion, lucide-react, zod, react-hook-form
 
 REQUIREMENTS:
 - Next.js 15 with App Router (app/ directory)
@@ -36,7 +39,7 @@ REQUIREMENTS:
 - Tailwind CSS v4
 - shadcn/ui components (npx shadcn@latest init, then add needed components)
 - Dark theme ONLY — background #0d1117, no light mode
-- Lemon Squeezy checkout overlay for payments
+- Stripe Payment Link for payments (hosted checkout — use the URL directly as the Buy button href)
 - Landing page that converts: hero, problem, solution, pricing, FAQ
 - The actual tool/feature behind a paywall (cookie-based access after purchase)
 - Mobile responsive
@@ -56,9 +59,13 @@ REQUIREMENTS:
   to package.json dependencies and re-run npm install + npm run build until it passes.
 
 ENVIRONMENT VARIABLES (create .env.example):
-- NEXT_PUBLIC_LEMON_SQUEEZY_STORE_ID
-- NEXT_PUBLIC_LEMON_SQUEEZY_PRODUCT_ID
-- LEMON_SQUEEZY_WEBHOOK_SECRET
+- NEXT_PUBLIC_STRIPE_PAYMENT_LINK  (full URL, e.g. https://buy.stripe.com/test_XXX)
+- NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY  (pk_test_... or pk_live_...)
+- STRIPE_WEBHOOK_SECRET  (set when webhook is wired)
+
+BUY BUTTON RULE: the Buy button's href MUST be `process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK`
+used as-is — do NOT construct URLs from a product ID, do NOT prepend any base URL,
+do NOT wrap it in an embed iframe. The link opens Stripe's hosted checkout directly.
 
 After creating all files:
 1. Run: npm install

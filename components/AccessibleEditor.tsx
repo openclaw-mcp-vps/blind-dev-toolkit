@@ -1,132 +1,441 @@
 "use client";
 
-import { useCallback, useMemo, useRef } from "react";
 import Editor from "@monaco-editor/react";
-import { useHotkeys } from "react-hotkeys-hook";
-import { create } from "zustand";
-import type { editor as MonacoEditor } from "monaco-editor";
-import { CodeReader } from "@/components/CodeReader";
-import { KeyboardNavigator } from "@/components/KeyboardNavigator";
-import { VoiceSynthesis } from "@/components/VoiceSynthesis";
-import { countComplexitySignals, humanLine, splitCodeToLines } from "@/lib/accessibility-utils";
+import { Activity, Save, Volume2, VolumeX, Wifi, WifiOff } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import { io, type Socket } from "socket.io-client";
+import { AudioNavigator } from "@/components/AudioNavigator";
+import { ScreenReaderOptimizer } from "@/components/ScreenReaderOptimizer";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { useAudioNavigation } from "@/hooks/useAudioNavigation";
+import { useScreenReader } from "@/hooks/useScreenReader";
+import { buildLineAnnouncement } from "@/lib/screen-reader-bridge";
 
-type EditorState = {
-  code: string;
-  activeLine: number;
-  setCode: (code: string) => void;
-  setActiveLine: (line: number) => void;
+type AccessibleEditorProps = {
+  ownerEmail: string;
+  initialProjectId?: string;
 };
 
-const initialCode = `function announceStatus(taskName, completed) {
-  const status = completed ? "done" : "in progress";
-  return "Task " + taskName + " is " + status + ".";
+type ProjectPayload = {
+  id: string;
+  name: string;
+  content: string;
+  language: string;
+  updatedAt: string;
+};
+
+type CollaborationMessage = {
+  projectId: string;
+  content: string;
+  updatedAt: string;
+};
+
+const starterSnippet = `type BuildIssue = {
+  id: string;
+  severity: "critical" | "warning" | "info";
+  details: string;
+};
+
+export function summarizeBuildIssues(issues: BuildIssue[]) {
+  const critical = issues.filter((issue) => issue.severity === "critical");
+  const warnings = issues.filter((issue) => issue.severity === "warning");
+
+  if (critical.length > 0) {
+    return "Stop release: " + critical.length + " critical issue(s) need immediate fixes.";
+  }
+
+  if (warnings.length > 0) {
+    return "Proceed with caution: " + warnings.length + " warnings remain.";
+  }
+
+  return "All checks passed. Accessible release is ready.";
+}
+`;
+
+function generateProjectId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `project-${Date.now()}`;
 }
 
-export function summarizeBuild(steps) {
-  return steps
-    .map((step, index) => "Step " + (index + 1) + ": " + step)
-    .join("\\n");
-}`;
+export function AccessibleEditor({ ownerEmail, initialProjectId }: AccessibleEditorProps) {
+  const router = useRouter();
+  const [projectId, setProjectId] = useState(() =>
+    initialProjectId && initialProjectId !== "new" ? initialProjectId : generateProjectId()
+  );
+  const [projectName, setProjectName] = useState("Accessibility Collaboration Workspace");
+  const [code, setCode] = useState(starterSnippet);
+  const [saveStatus, setSaveStatus] = useState("Unsaved changes");
+  const [cursorLine, setCursorLine] = useState(1);
+  const [collabStatus, setCollabStatus] = useState<"connecting" | "connected" | "offline">("connecting");
+  const [isSaving, setIsSaving] = useState(false);
 
-const useEditorStore = create<EditorState>((set) => ({
-  code: initialCode,
-  activeLine: 0,
-  setCode: (code) => set({ code }),
-  setActiveLine: (line) => set({ activeLine: line })
-}));
+  const editorRef = useRef<
+    Parameters<NonNullable<ComponentProps<typeof Editor>["onMount"]>>[0] | null
+  >(null);
+  const codeRef = useRef(code);
+  const socketRef = useRef<Socket | null>(null);
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-export function AccessibleEditor() {
-  const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
-  const code = useEditorStore((state) => state.code);
-  const activeLine = useEditorStore((state) => state.activeLine);
-  const setCode = useEditorStore((state) => state.setCode);
-  const setActiveLine = useEditorStore((state) => state.setActiveLine);
+  const { announce, politeMessage, assertiveMessage, screenReaderLikely, shortcuts } = useScreenReader();
+  const { audioEnabled, outline, announceLine, announceOutline, toggleAudio } = useAudioNavigation(code);
 
-  const lines = useMemo(() => splitCodeToLines(code), [code]);
-  const focusedLineText = useMemo(() => humanLine(lines, activeLine), [lines, activeLine]);
-  const stats = useMemo(() => countComplexitySignals(code), [code]);
+  const diagnostics = useMemo(() => {
+    const lines = code.split("\n");
+    const todos = lines.filter((line) => line.includes("TODO")).length;
+    const longLines = lines.filter((line) => line.length > 100).length;
+    return { todos, longLines, totalLines: lines.length };
+  }, [code]);
 
-  const speakText = useCallback((text: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
-    window.speechSynthesis.speak(utterance);
-  }, []);
+  const collaborationBadge = collabStatus === "connected" ? "Live Collaboration" : "Local Mode";
 
-  useHotkeys("ctrl+shift+l", () => {
-    speakText(focusedLineText);
-  });
+  useEffect(() => {
+    codeRef.current = code;
+  }, [code]);
 
-  useHotkeys("ctrl+shift+r", () => {
-    const selection = editorRef.current?.getModel()?.getValueInRange(editorRef.current.getSelection()!);
-    speakText(selection?.trim() ? `Selected code. ${selection}` : focusedLineText);
-  });
+  useEffect(() => {
+    if (!initialProjectId || initialProjectId === "new") {
+      return;
+    }
 
-  useHotkeys("ctrl+shift+down", () => {
-    const nextLine = Math.min(lines.length - 1, activeLine + 1);
-    setActiveLine(nextLine);
-    editorRef.current?.revealLineInCenter(nextLine + 1);
-    editorRef.current?.setPosition({ lineNumber: nextLine + 1, column: 1 });
-    speakText(humanLine(lines, nextLine));
-  });
+    let mounted = true;
 
-  useHotkeys("alt+1", () => editorRef.current?.focus());
+    const loadProject = async () => {
+      try {
+        const response = await fetch(`/api/projects?id=${encodeURIComponent(initialProjectId)}`);
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as { project?: ProjectPayload | null };
+        if (!mounted || !payload.project) {
+          return;
+        }
+
+        setProjectId(payload.project.id);
+        setProjectName(payload.project.name);
+        setCode(payload.project.content);
+        setSaveStatus(`Loaded project updated ${new Date(payload.project.updatedAt).toLocaleString()}`);
+        announce("Project loaded successfully.");
+      } catch {
+        announce("Unable to load selected project.", "assertive");
+      }
+    };
+
+    void loadProject();
+
+    return () => {
+      mounted = false;
+    };
+  }, [announce, initialProjectId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const endpoint = process.env.NEXT_PUBLIC_COLLAB_SERVER_URL || window.location.origin;
+    const socket = io(endpoint, {
+      path: "/socket.io",
+      transports: ["websocket", "polling"],
+      autoConnect: true
+    });
+
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      setCollabStatus("connected");
+      socket.emit("project:join", projectId);
+      announce("Collaboration connection established.");
+    });
+
+    socket.on("disconnect", () => {
+      setCollabStatus("offline");
+    });
+
+    socket.on("connect_error", () => {
+      setCollabStatus("offline");
+    });
+
+    socket.on("project:update", (payload: CollaborationMessage) => {
+      if (payload.projectId !== projectId || payload.content === codeRef.current) {
+        return;
+      }
+
+      setCode(payload.content);
+      setSaveStatus(`Remote update received at ${new Date(payload.updatedAt).toLocaleTimeString()}`);
+      announce("Incoming collaboration update applied.");
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [announce, projectId]);
+
+  const saveProject = useCallback(async () => {
+    setIsSaving(true);
+    setSaveStatus("Saving project...");
+
+    try {
+      const response = await fetch("/api/projects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          id: projectId,
+          name: projectName,
+          content: code,
+          language: "typescript"
+        })
+      });
+
+      const payload = (await response.json()) as {
+        error?: string;
+        project?: ProjectPayload;
+      };
+
+      if (response.status === 401) {
+        router.push("/dashboard?locked=1");
+        return;
+      }
+
+      if (!response.ok || !payload.project) {
+        setSaveStatus(payload.error ?? "Save failed");
+        announce(payload.error ?? "Save failed.", "assertive");
+        return;
+      }
+
+      setProjectId(payload.project.id);
+      setProjectName(payload.project.name);
+      setSaveStatus(`Saved at ${new Date(payload.project.updatedAt).toLocaleTimeString()}`);
+      announce("Project saved.");
+    } catch {
+      setSaveStatus("Network error while saving");
+      announce("Network error while saving.", "assertive");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [announce, code, projectId, projectName, router]);
+
+  const handleEditorChange = (value: string | undefined) => {
+    const nextCode = value ?? "";
+    setCode(nextCode);
+    setSaveStatus("Unsaved changes");
+
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      return;
+    }
+
+    if (syncTimerRef.current) {
+      clearTimeout(syncTimerRef.current);
+    }
+
+    syncTimerRef.current = setTimeout(() => {
+      socket.emit("project:update", {
+        projectId,
+        content: nextCode,
+        updatedAt: new Date().toISOString()
+      });
+    }, 220);
+  };
+
+  const jumpToLine = useCallback(
+    (line: number) => {
+      const editor = editorRef.current;
+      if (!editor) {
+        return;
+      }
+
+      editor.setPosition({ lineNumber: line, column: 1 });
+      editor.revealLineInCenter(line);
+      editor.focus();
+      setCursorLine(line);
+      void announceLine(line);
+      announce(`Moved cursor to line ${line}.`);
+    },
+    [announce, announceLine]
+  );
+
+  const readCurrentLine = useCallback(async () => {
+    const line = editorRef.current?.getPosition()?.lineNumber ?? cursorLine;
+    await announceLine(line);
+    announce(buildLineAnnouncement(codeRef.current, line));
+  }, [announce, announceLine, cursorLine]);
+
+  useEffect(() => {
+    const onGlobalShortcut = (event: KeyboardEvent) => {
+      if (!event.altKey) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+
+      if (key === "s") {
+        event.preventDefault();
+        void saveProject();
+      }
+
+      if (key === "1") {
+        event.preventDefault();
+        void readCurrentLine();
+      }
+
+      if (key === "2") {
+        event.preventDefault();
+        void announceOutline();
+      }
+
+      if (key === "n") {
+        event.preventDefault();
+        void toggleAudio();
+      }
+    };
+
+    window.addEventListener("keydown", onGlobalShortcut);
+    return () => {
+      window.removeEventListener("keydown", onGlobalShortcut);
+    };
+  }, [announceOutline, readCurrentLine, saveProject, toggleAudio]);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-      <section aria-labelledby="editor-title" className="panel p-4">
-        <h2 id="editor-title" className="text-lg font-semibold">
-          Accessible Code Editor
-        </h2>
-        <p className="mt-2 text-sm text-[#9ba7b4]">
-          The editor keeps line focus synchronized with speech output and exposes predictable keyboard commands.
-        </p>
-
-        <div className="mt-4 overflow-hidden rounded-md border border-[#30363d]">
-          <Editor
-            height="420px"
-            defaultLanguage="typescript"
-            value={code}
-            theme="vs-dark"
-            onMount={(editor) => {
-              editorRef.current = editor;
-              editor.onDidChangeCursorPosition((event) => {
-                setActiveLine(event.position.lineNumber - 1);
-              });
-            }}
-            onChange={(value) => setCode(value ?? "")}
-            options={{
-              minimap: { enabled: false },
-              fontSize: 16,
-              lineHeight: 24,
-              smoothScrolling: true,
-              cursorWidth: 3,
-              tabSize: 2,
-              ariaLabel: "Blind Dev Toolkit code editor",
-              accessibilitySupport: "on"
-            }}
-          />
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#30363d] bg-[#0d1117] p-3 text-sm">
-          <p>
-            <span className="text-[#9ba7b4]">Complexity snapshot:</span> {stats.lineCount} lines, {stats.longLines} long lines, {stats.deepNesting} deeply nested lines.
-          </p>
-          <p>
-            <span className="text-[#9ba7b4]">Estimated review time:</span> {stats.estimatedReadTime} min
+    <section className="mx-auto max-w-7xl space-y-4 px-4 py-6 sm:px-6 lg:px-8">
+      <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)]/85 p-4">
+        <div className="space-y-2">
+          <h1 className="text-xl font-semibold">Accessible Editor Workspace</h1>
+          <p className="text-sm text-[var(--muted)]">
+            Signed in as {ownerEmail}. Optimize coding flow with spoken line summaries and keyboard-first navigation.
           </p>
         </div>
-
-        <div className="mt-3">
-          <VoiceSynthesis text={code} label="Read full code" />
+        <div className="flex items-center gap-2">
+          <Badge>{collaborationBadge}</Badge>
+          <Badge>{audioEnabled ? "Audio On" : "Audio Off"}</Badge>
         </div>
-      </section>
+      </header>
 
-      <div className="space-y-4">
-        <CodeReader code={code} activeLine={activeLine} />
-        <KeyboardNavigator />
-      </div>
-    </div>
+      <Card>
+        <CardContent className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-sm font-medium" htmlFor="projectName">
+                Project Name
+              </label>
+              <Input
+                id="projectName"
+                value={projectName}
+                onChange={(event) => setProjectName(event.target.value)}
+                className="max-w-md"
+              />
+              <Button onClick={() => void saveProject()} disabled={isSaving}>
+                <Save className="mr-2 h-4 w-4" />
+                {isSaving ? "Saving" : "Save"}
+              </Button>
+              <Button variant="secondary" onClick={() => void toggleAudio()}>
+                {audioEnabled ? <Volume2 className="mr-2 h-4 w-4" /> : <VolumeX className="mr-2 h-4 w-4" />}
+                Toggle Audio
+              </Button>
+            </div>
+
+            <div className="rounded-lg border border-[var(--border)] bg-[#0a1019] p-2">
+              <Editor
+                height="62vh"
+                theme="vs-dark"
+                defaultLanguage="typescript"
+                language="typescript"
+                value={code}
+                onChange={handleEditorChange}
+                onMount={(editor, monaco) => {
+                  editorRef.current = editor;
+                  editor.updateOptions({
+                    accessibilitySupport: "on",
+                    ariaLabel: "Blind Dev Toolkit accessible code editor",
+                    minimap: { enabled: false },
+                    stickyScroll: { enabled: false },
+                    lineNumbersMinChars: 3,
+                    smoothScrolling: true,
+                    wordWrap: "on",
+                    tabSize: 2,
+                    fontSize: 16,
+                    lineHeight: 24
+                  });
+
+                  editor.onDidChangeCursorPosition((event) => {
+                    setCursorLine(event.position.lineNumber);
+                  });
+
+                  editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.Digit1, () => {
+                    void readCurrentLine();
+                  });
+
+                  editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.Digit2, () => {
+                    void announceOutline();
+                  });
+
+                  editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.KeyN, () => {
+                    void toggleAudio();
+                  });
+
+                  editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.KeyS, () => {
+                    void saveProject();
+                  });
+
+                  announce("Editor loaded. Use Alt plus 1 for line readout and Alt plus 2 for symbol outline.");
+                }}
+                options={{
+                  automaticLayout: true,
+                  quickSuggestions: false,
+                  parameterHints: { enabled: true },
+                  suggestOnTriggerCharacters: true,
+                  contextmenu: false
+                }}
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3 text-sm text-[var(--muted)]">
+              <span className="flex items-center gap-1 text-[var(--foreground)]">
+                <Activity className="h-4 w-4" aria-hidden="true" />
+                {saveStatus}
+              </span>
+              <span>Line {cursorLine}</span>
+              <span>{diagnostics.totalLines} total lines</span>
+              <span>{diagnostics.longLines} long lines (&gt;100 chars)</span>
+              <span>{diagnostics.todos} TODO markers</span>
+              <span className="flex items-center gap-1">
+                {collabStatus === "connected" ? (
+                  <Wifi className="h-4 w-4 text-[var(--accent)]" aria-hidden="true" />
+                ) : (
+                  <WifiOff className="h-4 w-4 text-[var(--danger)]" aria-hidden="true" />
+                )}
+                {collabStatus}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <AudioNavigator
+              symbols={outline}
+              onJumpToLine={jumpToLine}
+              onReadOutline={() => void announceOutline()}
+              audioEnabled={audioEnabled}
+            />
+
+            <ScreenReaderOptimizer
+              politeMessage={politeMessage}
+              assertiveMessage={assertiveMessage}
+              screenReaderLikely={screenReaderLikely}
+              shortcuts={shortcuts}
+            />
+          </div>
+        </CardContent>
+      </Card>
+    </section>
   );
 }

@@ -2,12 +2,14 @@
 
 :root {
   --background: #0d1117;
-  --foreground: #e6edf3;
-  --muted: #161b22;
-  --muted-foreground: #9ba7b4;
-  --border: #30363d;
-  --accent: #1f6feb;
-  --accent-foreground: #f0f6fc;
+  --surface: #111a27;
+  --surface-2: #182232;
+  --foreground: #f1f5f9;
+  --muted: #9aa7ba;
+  --accent: #3dd9c4;
+  --accent-2: #7cc6fe;
+  --danger: #f87171;
+  --border: #273448;
 }
 
 * {
@@ -16,38 +18,26 @@
 
 html,
 body {
-  background: radial-gradient(circle at top right, #1c2430 0%, #0d1117 45%) fixed;
-  color: var(--foreground);
-  font-family: "IBM Plex Sans", "Source Sans 3", sans-serif;
   min-height: 100%;
 }
 
-a {
-  color: inherit;
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(61, 217, 196, 0.13), transparent 36%),
+    radial-gradient(circle at 95% 10%, rgba(124, 198, 254, 0.14), transparent 28%),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), "Segoe UI", sans-serif;
 }
 
-.container {
-  margin: 0 auto;
-  max-width: 72rem;
-  padding-left: 1.25rem;
-  padding-right: 1.25rem;
+code,
+pre,
+kbd,
+textarea {
+  font-family: var(--font-mono), "IBM Plex Mono", monospace;
 }
 
-.panel {
-  border: 1px solid var(--border);
-  background: color-mix(in oklab, var(--muted) 92%, transparent);
-  border-radius: 0.9rem;
-}
-
-.section-title {
-  font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
-  font-weight: 700;
-}
-
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-[role="button"]:focus-visible {
-  outline: 3px solid color-mix(in oklab, var(--accent) 75%, white);
-  outline-offset: 2px;
+::selection {
+  background: rgba(61, 217, 196, 0.25);
 }

@@ -1,53 +1,140 @@
-import crypto from "crypto";
-import { z } from "zod";
+import crypto from "node:crypto";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 
-const orderPayloadSchema = z.object({
-  meta: z.object({
-    event_name: z.string()
-  }),
-  data: z.object({
-    id: z.string(),
-    type: z.string(),
-    attributes: z.object({
-      user_email: z.string().email().optional(),
-      total_usd: z.number().optional(),
-      status: z.string().optional(),
-      identifier: z.string().optional()
-    })
-  })
-});
+export type EntitlementStatus = "active" | "revoked";
 
-export type PurchaseRecord = {
-  orderId: string;
+export type Entitlement = {
   email: string;
-  amountUsd: number;
-  status: string;
-  receiptId: string;
+  source: "stripe";
+  status: EntitlementStatus;
   purchasedAt: string;
+  updatedAt: string;
+  customerId?: string;
+  lastEventId?: string;
 };
 
-export function verifyLemonSqueezySignature(rawBody: string, signature: string | null): boolean {
-  const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
-  if (!secret || !signature) return false;
+type EntitlementStore = {
+  entitlements: Entitlement[];
+};
 
-  const digest = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-  return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(signature));
+const storePath = path.join(process.cwd(), ".data", "entitlements.json");
+
+async function ensureStore() {
+  await fs.mkdir(path.dirname(storePath), { recursive: true });
+  try {
+    await fs.access(storePath);
+  } catch {
+    const initial: EntitlementStore = { entitlements: [] };
+    await fs.writeFile(storePath, JSON.stringify(initial, null, 2), "utf8");
+  }
 }
 
-export function parseLemonSqueezyPayload(payload: unknown) {
-  return orderPayloadSchema.safeParse(payload);
+async function readStore(): Promise<EntitlementStore> {
+  await ensureStore();
+  const raw = await fs.readFile(storePath, "utf8");
+  return JSON.parse(raw) as EntitlementStore;
 }
 
-export function getCheckoutOverlayUrl() {
-  const productId = process.env.NEXT_PUBLIC_LEMON_SQUEEZY_PRODUCT_ID;
-  if (!productId) return null;
+async function writeStore(store: EntitlementStore) {
+  await fs.writeFile(storePath, JSON.stringify(store, null, 2), "utf8");
+}
 
-  const query = new URLSearchParams({
-    embed: "1",
-    media: "0",
-    logo: "0",
-    checkout: "true"
+export async function hasActiveEntitlement(email: string) {
+  const store = await readStore();
+  const normalized = email.trim().toLowerCase();
+  return store.entitlements.some(
+    (entry) => entry.email === normalized && entry.status === "active"
+  );
+}
+
+export async function upsertEntitlement(record: Omit<Entitlement, "updatedAt">) {
+  const store = await readStore();
+  const normalizedEmail = record.email.trim().toLowerCase();
+
+  const index = store.entitlements.findIndex(
+    (entry) => entry.email === normalizedEmail && entry.source === record.source
+  );
+
+  const completeRecord: Entitlement = {
+    ...record,
+    email: normalizedEmail,
+    updatedAt: new Date().toISOString()
+  };
+
+  if (index >= 0) {
+    store.entitlements[index] = {
+      ...store.entitlements[index],
+      ...completeRecord
+    };
+  } else {
+    store.entitlements.push(completeRecord);
+  }
+
+  await writeStore(store);
+  return completeRecord;
+}
+
+export function getStripePaymentLink() {
+  return process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK;
+}
+
+function parseStripeSignatureHeader(signatureHeader: string) {
+  const values = signatureHeader.split(",").reduce<Record<string, string[]>>((acc, part) => {
+    const [key, value] = part.split("=");
+    if (!key || !value) {
+      return acc;
+    }
+
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+
+    acc[key].push(value);
+    return acc;
+  }, {});
+
+  const timestamp = Number(values.t?.[0]);
+  const signatures = values.v1 ?? [];
+
+  if (!timestamp || signatures.length === 0) {
+    return null;
+  }
+
+  return { timestamp, signatures };
+}
+
+export function verifyStripeWebhookSignature(
+  payload: string,
+  signatureHeader: string | null,
+  secret: string,
+  toleranceSeconds = 300
+) {
+  if (!signatureHeader) {
+    return false;
+  }
+
+  const parsed = parseStripeSignatureHeader(signatureHeader);
+  if (!parsed) {
+    return false;
+  }
+
+  const ageSeconds = Math.abs(Date.now() / 1000 - parsed.timestamp);
+  if (ageSeconds > toleranceSeconds) {
+    return false;
+  }
+
+  const signedPayload = `${parsed.timestamp}.${payload}`;
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(signedPayload)
+    .digest("hex");
+
+  return parsed.signatures.some((candidate) => {
+    try {
+      return crypto.timingSafeEqual(Buffer.from(candidate), Buffer.from(expected));
+    } catch {
+      return false;
+    }
   });
-
-  return `https://app.lemonsqueezy.com/checkout/buy/${productId}?${query.toString()}`;
 }
