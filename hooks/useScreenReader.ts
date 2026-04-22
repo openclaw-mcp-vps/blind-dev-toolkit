@@ -1,44 +1,47 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { summarizeEditorShortcuts } from "@/lib/screen-reader-bridge";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { detectScreenReader, type ScreenReaderProfile } from "@/lib/accessibility-utils";
+import { withPriority } from "@/lib/screen-reader-api";
 
-type Priority = "polite" | "assertive";
+const defaultProfile: ScreenReaderProfile = {
+  engine: "unknown",
+  isLikelyEnabled: false,
+  platform: "unknown"
+};
 
 export function useScreenReader() {
-  const [politeMessage, setPoliteMessage] = useState("");
-  const [assertiveMessage, setAssertiveMessage] = useState("");
+  const [profile, setProfile] = useState<ScreenReaderProfile>(defaultProfile);
+  const [liveMessage, setLiveMessage] = useState("");
 
-  const screenReaderLikely = useMemo(() => {
+  useEffect(() => {
     if (typeof navigator === "undefined") {
-      return false;
-    }
-
-    const signal = `${navigator.userAgent} ${navigator.platform}`;
-    return /(voiceover|nvda|jaws|orca)/i.test(signal);
-  }, []);
-
-  const announce = useCallback((message: string, priority: Priority = "polite") => {
-    const normalized = message.trim();
-    if (!normalized) {
       return;
     }
 
-    if (priority === "assertive") {
-      setAssertiveMessage("");
-      requestAnimationFrame(() => setAssertiveMessage(normalized));
-      return;
+    setProfile(detectScreenReader(navigator.userAgent));
+  }, []);
+
+  const announce = useCallback((message: string, priority: "polite" | "assertive" = "polite") => {
+    setLiveMessage("");
+
+    window.requestAnimationFrame(() => {
+      setLiveMessage(withPriority(message, priority));
+    });
+  }, []);
+
+  const profileSummary = useMemo(() => {
+    if (profile.engine === "unknown") {
+      return "Screen reader not automatically detected. Manual mode is enabled.";
     }
 
-    setPoliteMessage("");
-    requestAnimationFrame(() => setPoliteMessage(normalized));
-  }, []);
+    return `Detected ${profile.engine.toUpperCase()} profile on ${profile.platform}.`;
+  }, [profile.engine, profile.platform]);
 
   return {
-    announce,
-    politeMessage,
-    assertiveMessage,
-    screenReaderLikely,
-    shortcuts: summarizeEditorShortcuts()
+    profile,
+    profileSummary,
+    liveMessage,
+    announce
   };
 }

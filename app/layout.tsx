@@ -1,64 +1,54 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
-import "./globals.css";
+import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import "@/app/globals.css";
+import "@/styles/accessibility.css";
 
-const sans = Space_Grotesk({
+const plexSans = IBM_Plex_Sans({
   subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap"
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-sans"
 });
 
-const mono = IBM_Plex_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
-  variable: "--font-mono",
   weight: ["400", "500", "600"],
-  display: "swap"
+  variable: "--font-mono"
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://blinddevtoolkit.com"),
-  title: "Blind Dev Toolkit | Screen Reader Optimized Coding Environment",
+  metadataBase: new URL("https://blind-dev-toolkit.example.com"),
+  title: {
+    default: "Blind Dev Toolkit | Screen Reader Optimized IDE",
+    template: "%s | Blind Dev Toolkit"
+  },
   description:
-    "Blind Dev Toolkit is a screen reader optimized coding environment with audio code navigation, collaborative editing, and accessible debugging workflows built for NVDA, JAWS, and VoiceOver.",
+    "Blind Dev Toolkit is a screen reader optimized coding environment with audio navigation, keyboard-first workflows, and accessible debugging for NVDA, JAWS, and VoiceOver.",
   keywords: [
     "accessible IDE",
-    "screen reader coding",
-    "blind developer tools",
-    "NVDA",
-    "JAWS",
-    "VoiceOver",
-    "inclusive engineering"
+    "screen reader developer tools",
+    "NVDA coding",
+    "JAWS development",
+    "VoiceOver engineering",
+    "blind developer toolkit"
   ],
   openGraph: {
     title: "Blind Dev Toolkit",
     description:
-      "Code faster with a screen reader-first IDE: audio navigation, accessible debugging, and collaboration built for blind developers.",
+      "A coding environment built for blind and visually impaired developers with spoken code navigation and accessible debugging.",
     type: "website",
-    url: "https://blinddevtoolkit.com",
     siteName: "Blind Dev Toolkit"
   },
   twitter: {
     card: "summary_large_image",
     title: "Blind Dev Toolkit",
-    description:
-      "A coding environment engineered for blind and visually impaired developers, not adapted as an afterthought."
-  },
-  robots: {
-    index: true,
-    follow: true
+    description: "Screen reader optimized coding environment and tools"
   }
 };
 
-export default function RootLayout({
-  children
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
-      <body className="min-h-screen bg-[var(--background)] text-[var(--foreground)] antialiased">
-        {children}
-      </body>
+    <html lang="en" className={`${plexSans.variable} ${plexMono.variable}`}>
+      <body>{children}</body>
     </html>
   );
 }

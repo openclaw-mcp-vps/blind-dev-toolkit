@@ -1,0 +1,25 @@
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+:focus-visible {
+  outline: 3px solid #38bdf8;
+  outline-offset: 3px;
+}
+
+[data-high-contrast="true"] {
+  filter: contrast(125%);
+}
+
+.reading-guide-line {
+  border-left: 3px solid #38bdf8;
+  padding-left: 0.75rem;
+}

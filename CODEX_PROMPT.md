@@ -11,27 +11,29 @@ NICHE: accessibility-tools
 PRICE: $$19/mo
 
 ARCHITECTURE SPEC:
-A Next.js web application with an accessible code editor built on Monaco Editor with custom screen reader optimizations, audio navigation system, and real-time collaboration features. The architecture includes a Node.js backend for project management, WebSocket connections for live coding sessions, and integrated payment processing through Lemon Squeezy.
+A Next.js web application that provides a screen reader-optimized code editor with audio navigation cues, accessible debugging tools, and seamless integration with popular screen readers. The architecture uses a modular design with specialized accessibility components, real-time audio feedback systems, and keyboard-first navigation patterns.
 
 PLANNED FILES:
 - app/page.tsx
 - app/editor/page.tsx
 - app/dashboard/page.tsx
 - app/api/auth/route.ts
-- app/api/projects/route.ts
-- app/api/webhooks/lemonsqueezy/route.ts
+- app/api/lemonsqueezy/webhook/route.ts
 - components/AccessibleEditor.tsx
 - components/AudioNavigator.tsx
-- components/ScreenReaderOptimizer.tsx
-- components/PricingCard.tsx
-- lib/audio-engine.ts
-- lib/screen-reader-bridge.ts
+- components/ScreenReaderOptimized.tsx
+- components/KeyboardShortcuts.tsx
+- components/AccessibleDebugger.tsx
+- components/PricingTable.tsx
+- lib/accessibility-utils.ts
+- lib/audio-feedback.ts
+- lib/screen-reader-api.ts
 - lib/lemonsqueezy.ts
-- lib/websocket-server.ts
-- hooks/useAudioNavigation.ts
 - hooks/useScreenReader.ts
+- hooks/useAudioCues.ts
+- styles/accessibility.css
 
-DEPENDENCIES: next, react, typescript, tailwindcss, @monaco-editor/react, socket.io, socket.io-client, @lemonsqueezy/lemonsqueezy.js, next-auth, prisma, @prisma/client, web-speech-api, tone, framer-motion, lucide-react, zod, react-hook-form
+DEPENDENCIES: next, react, typescript, tailwindcss, @lemonsqueezy/lemonsqueezy.js, next-auth, prisma, @prisma/client, monaco-editor, @monaco-editor/react, web-speech-api, focus-trap-react, react-hotkeys-hook, aria-live-announcer, screen-reader-utils
 
 REQUIREMENTS:
 - Next.js 15 with App Router (app/ directory)

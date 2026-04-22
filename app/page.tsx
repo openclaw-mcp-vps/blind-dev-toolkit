@@ -1,149 +1,147 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
-import { ArrowRight, Ear, ShieldCheck, Users, Workflow } from "lucide-react";
-import { PricingCard } from "@/components/PricingCard";
-import { Badge } from "@/components/ui/badge";
+import { PricingTable } from "@/components/PricingTable";
+import { UnlockAccessForm } from "@/components/UnlockAccessForm";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ACCESS_COOKIE_NAME, verifyAccessToken } from "@/lib/access-control";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { hasCheckoutConfigured } from "@/lib/lemonsqueezy";
+
+const problems = [
+  "Screen reader users lose context when IDE panes update without accessible announcements.",
+  "Visual-only debugging surfaces force blind developers to hunt through logs line-by-line.",
+  "Standard code navigation relies on mouse-first interactions instead of deterministic shortcuts."
+];
+
+const solutions = [
+  "Audio landmarks that jump to functions, classes, and region markers in one command.",
+  "Live cursor narration with speech-friendly formatting for symbols and whitespace.",
+  "Built-in expression debugger that returns spoken output and accessibility diagnostics.",
+  "Focus-trap mode that removes layout noise and keeps screen reader context stable."
+];
 
 const faq = [
   {
-    question: "How does this reduce navigation overhead for blind developers?",
+    question: "Does this replace my existing editor?",
     answer:
-      "The editor ships with spoken line context, symbol-level jump controls, and concise status announcements. Instead of scanning visually dense UI, developers can navigate by keyboard and audio prompts designed around code structure."
+      "Blind Dev Toolkit complements your existing stack. You can draft and debug logic here, then move code into your primary repo workflow when needed."
   },
   {
-    question: "Does it work with NVDA, JAWS, and VoiceOver?",
+    question: "How does purchase access work?",
     answer:
-      "Yes. The app uses ARIA live regions, lower-noise announcements, and Monaco accessibility options that improve compatibility with all three major screen readers."
+      "After Stripe checkout, the webhook stores your purchase email. Enter that email in the unlock form and the app sets a signed access cookie for your account."
   },
   {
-    question: "How does paywall access work after purchase?",
+    question: "Will this work with enterprise onboarding?",
     answer:
-      "Checkout happens in Stripe hosted checkout. Stripe webhook events mark your purchase email as active, then dashboard verification sets a secure cookie that unlocks the editor and project APIs."
+      "Yes. Teams can standardize keyboard mappings and onboarding docs around one accessible environment so blind engineers can ramp up quickly."
   },
   {
-    question: "Can teams use this for onboarding and pair programming?",
+    question: "Which screen readers are supported?",
     answer:
-      "Yes. Collaboration sync events allow live shared editing, and the dashboard keeps accessible starter projects for team onboarding workflows."
+      "The interaction model is tuned for NVDA, JAWS, and VoiceOver patterns, with predictable ARIA regions and keyboard-first controls."
   }
 ];
 
-export default async function HomePage() {
-  const cookieStore = await cookies();
-  const access = verifyAccessToken(cookieStore.get(ACCESS_COOKIE_NAME)?.value);
+export default function HomePage() {
+  const checkoutReady = hasCheckoutConfigured();
 
   return (
-    <main className="mx-auto max-w-6xl space-y-16 px-4 py-10 sm:px-6 lg:px-8">
-      <header className="rounded-2xl border border-[var(--border)] bg-[linear-gradient(145deg,rgba(17,26,39,0.92),rgba(9,15,24,0.9))] p-8 sm:p-10">
-        <Badge className="mb-4">Accessibility Tools · $19/month</Badge>
-        <h1 className="max-w-3xl text-3xl font-semibold leading-tight sm:text-5xl">
-          Screen reader optimized coding environment and tools
-        </h1>
-        <p className="mt-4 max-w-2xl text-base text-[var(--muted)] sm:text-lg">
-          Blind Dev Toolkit gives blind and visually impaired engineers an IDE workflow that starts with accessibility instead of patching it in later. Ship faster with audio navigation, concise announcements, and collaboration-ready coding sessions.
-        </p>
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <Link className={buttonVariants()} href={access ? "/editor" : "/dashboard"}>
-            {access ? "Open Editor" : "Open Dashboard"}
-            <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-          </Link>
-          <a className={buttonVariants({ variant: "outline" })} href="#pricing">
-            View Pricing
-          </a>
-        </div>
-      </header>
-
-      <section className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Ear className="h-5 w-5 text-[var(--accent)]" aria-hidden="true" />
-              Problem
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-[var(--muted)]">
-            Standard IDEs force visual navigation patterns. Blind developers often spend 3-5x longer locating symbols, understanding state changes, and interpreting diagnostics because tooling is optimized for sighted workflows.
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <ShieldCheck className="h-5 w-5 text-[var(--accent)]" aria-hidden="true" />
-              Solution
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-[var(--muted)]">
-            This toolkit layers structured speech output, keyboard-first symbol jumps, and accessible debug summaries directly into the editor. Developers get predictable audio feedback for every key coding action.
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Workflow className="h-4 w-4 text-[var(--accent-2)]" aria-hidden="true" />
-              Audio Code Navigation
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-[var(--muted)]">
-            Hear contextual line summaries and symbol outlines on demand. Move through functions and classes without visual scanning.
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Users className="h-4 w-4 text-[var(--accent-2)]" aria-hidden="true" />
-              Collaboration Ready
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-[var(--muted)]">
-            Socket-based collaboration broadcasts code updates in real time for pair programming and onboarding sessions.
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ShieldCheck className="h-4 w-4 text-[var(--accent-2)]" aria-hidden="true" />
-              Secure Paywall Access
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-[var(--muted)]">
-            Stripe checkout with webhook-backed entitlement verification unlocks access through a secure cookie workflow.
-          </CardContent>
-        </Card>
-      </section>
-
-      <section id="pricing" className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 p-6">
-          <h2 className="text-2xl font-semibold">Built for engineers and teams who care about inclusive velocity</h2>
-          <p className="text-sm text-[var(--muted)]">
-            Companies adopting remote-first hiring are actively expanding talent pipelines. Accessible development tooling helps teams onboard blind engineers effectively and meet accessibility commitments in their products.
+    <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-14 px-6 py-10 md:px-10 lg:px-12">
+      <section className="grid gap-8 lg:grid-cols-[1.3fr_1fr] lg:items-center">
+        <div className="space-y-6">
+          <p className="inline-flex rounded-full border border-sky-400/40 bg-sky-500/10 px-3 py-1 text-xs uppercase tracking-[0.2em] text-sky-200">
+            Accessibility-Tools · $19/month
           </p>
-          <ul className="space-y-2 text-sm text-[var(--muted)]">
-            <li>Blind and visually impaired software engineers in enterprise and startup teams</li>
-            <li>Accessibility consultants building inclusive products for clients</li>
-            <li>Engineering organizations improving onboarding for diverse talent</li>
-          </ul>
+          <h1 className="text-4xl font-bold leading-tight text-slate-100 md:text-5xl">
+            Screen reader optimized coding environment and tools
+          </h1>
+          <p className="max-w-2xl text-lg text-slate-300">
+            Blind Dev Toolkit removes the visual friction in modern IDEs with spoken code context, keyboard-first navigation, and non-visual debugging built for real engineering work.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/editor" className={buttonVariants({ size: "lg" })}>
+              Open Editor Workspace
+            </Link>
+            <Link href="/dashboard" className={buttonVariants({ variant: "secondary", size: "lg" })}>
+              Go to Dashboard
+            </Link>
+          </div>
+          {!checkoutReady ? (
+            <p className="rounded-md border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-200">
+              Configure `NEXT_PUBLIC_STRIPE_PAYMENT_LINK` to activate hosted checkout.
+            </p>
+          ) : null}
         </div>
-        <PricingCard />
+
+        <Card className="border-slate-700/80 bg-slate-950/80">
+          <CardHeader>
+            <CardTitle>Why teams buy this</CardTitle>
+            <CardDescription>Blind engineers spend 3-5x longer in visual-first IDEs. This tool closes that productivity gap.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-slate-300">
+            <p>Reduce onboarding overhead for blind developers.</p>
+            <p>Standardize accessible workflows for remote engineering teams.</p>
+            <p>Improve retention by giving accessibility-first tooling on day one.</p>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Problem</CardTitle>
+            <CardDescription>Visual interfaces make routine coding tasks unnecessarily slow for non-visual developers.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-3 text-sm text-slate-300">
+              {problems.map((problem) => (
+                <li key={problem} className="rounded-md border border-slate-800 bg-slate-900/60 p-3">
+                  {problem}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Solution</CardTitle>
+            <CardDescription>Every core feature is designed to be consumed through speech and keyboard feedback.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-3 text-sm text-slate-300">
+              {solutions.map((solution) => (
+                <li key={solution} className="rounded-md border border-slate-800 bg-slate-900/60 p-3">
+                  {solution}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
+        <PricingTable />
+        <UnlockAccessForm />
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-2xl font-semibold">FAQ</h2>
+        <h2 className="text-2xl font-semibold text-slate-100">FAQ</h2>
         <div className="space-y-3">
           {faq.map((item) => (
-            <Card key={item.question}>
-              <CardHeader>
-                <CardTitle className="text-base">{item.question}</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0 text-sm text-[var(--muted)]">{item.answer}</CardContent>
-            </Card>
+            <details key={item.question} className="rounded-lg border border-slate-800 bg-slate-950/50 p-4">
+              <summary className="cursor-pointer text-base font-semibold text-slate-100">{item.question}</summary>
+              <p className="mt-2 text-sm text-slate-300">{item.answer}</p>
+            </details>
           ))}
         </div>
       </section>
+
+      <footer className="border-t border-slate-800 pt-6 text-sm text-slate-400">
+        <p>
+          Built for blind and visually impaired engineers, accessibility consultants, and inclusive development teams.
+        </p>
+        <p className="mt-3 text-slate-300">NVDA · JAWS · VoiceOver optimized</p>
+      </footer>
     </main>
   );
 }

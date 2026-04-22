@@ -1,24 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import {
+  ACCESS_COOKIE_MAX_AGE,
   ACCESS_COOKIE_NAME,
   createAccessToken,
+  hasPurchaseForEmail,
   verifyAccessToken
-} from "@/lib/access-control";
-import { hasActiveEntitlement } from "@/lib/lemonsqueezy";
+} from "@/lib/paywall";
 
-const verifySchema = z.object({
-  email: z.string().email()
-});
-
-function cookieSecurityOptions() {
-  return {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax" as const,
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30
-  };
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 export async function GET(request: NextRequest) {
@@ -32,45 +22,57 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json().catch(() => null);
-  const parsed = verifySchema.safeParse(body);
+  const body = (await request.json().catch(() => ({}))) as { email?: string };
+  const email = body.email?.trim().toLowerCase() ?? "";
 
-  if (!parsed.success) {
+  if (!isValidEmail(email)) {
     return NextResponse.json(
-      { error: "Enter a valid purchase email." },
+      {
+        authenticated: false,
+        message: "Enter a valid purchase email address."
+      },
       { status: 400 }
     );
   }
 
-  const email = parsed.data.email.toLowerCase();
-  const hasAccess = await hasActiveEntitlement(email);
-
-  if (!hasAccess) {
+  const hasPurchase = await hasPurchaseForEmail(email);
+  if (!hasPurchase) {
     return NextResponse.json(
       {
-        error:
-          "No active subscription was found for this email yet. Complete Stripe checkout first, then try again."
+        authenticated: false,
+        message:
+          "No completed Stripe purchase was found for this email yet. If checkout was recent, wait one minute for webhook delivery and try again."
       },
-      { status: 402 }
+      { status: 403 }
     );
   }
 
-  const token = createAccessToken(email);
-  const response = NextResponse.json({ authenticated: true, email });
+  const response = NextResponse.json({
+    authenticated: true,
+    email
+  });
+
   response.cookies.set({
     name: ACCESS_COOKIE_NAME,
-    value: token,
-    ...cookieSecurityOptions()
+    value: createAccessToken(email),
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: ACCESS_COOKIE_MAX_AGE
   });
 
   return response;
 }
 
-export async function DELETE() {
+export function DELETE() {
   const response = NextResponse.json({ authenticated: false });
   response.cookies.set({
     name: ACCESS_COOKIE_NAME,
     value: "",
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
     path: "/",
     maxAge: 0
   });
